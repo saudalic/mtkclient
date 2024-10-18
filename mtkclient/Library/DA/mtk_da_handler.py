@@ -127,8 +127,7 @@ class DaHandler(metaclass=LogBase):
                 if not hassecurity:
                     mtk.daloader.patch = True
 
-                if preloader is None:
-                    self.info("Preloader is not supplied. Acquiring it through BROM exploit.")
+                if not self.mtk.config.stock:
                     mtk = mtk.bypass_security()  # Needed for dumping preloader
                 else:
                     self.info("Using supplied preloader. Skipping exploitation!")
@@ -164,6 +163,48 @@ class DaHandler(metaclass=LogBase):
         else:
             mtk.daloader.writestate()
             return mtk
+
+    def patch_vbmeta(self, vbmeta:bytes, vbmode:int):
+        vbmeta = bytearray(vbmeta)
+        DISABLE_VERITY = 1
+        DISABLE_VERIFICATION = 2
+        if vbmode == DISABLE_VERIFICATION:
+            self.info("Patching verification")
+        elif vbmode == DISABLE_VERITY:
+            self.info("Patching verity")
+        elif vbmode == DISABLE_VERIFICATION|DISABLE_VERITY:
+            self.info("Patching verification + verity")
+        elif vbmode == 0:
+            self.info("Enable verification + verity")
+        else:
+            self.error(f"Invalid mode: {vbmode}")
+            return None
+        vbmeta[0x78:0x78+4] = int.to_bytes(vbmode, 4, 'big')
+        return vbmeta
+
+    def da_vbmeta(self, vbmode:int=3):
+        gpttable = self.mtk.daloader.get_partition_data(parttype="user")
+        for partition in ["vbmeta","vbmeta_a"]:
+            rpartition = None
+            for gptentry in gpttable:
+                if gptentry.name.lower() == partition.lower():
+                    rpartition = gptentry
+                    break
+            if rpartition is not None:
+                self.info(f'Dumping partition "{rpartition.name}"')
+                vbmeta=self.mtk.daloader.readflash(addr=rpartition.sector * self.config.pagesize,
+                                               length=rpartition.sectors * self.config.pagesize,
+                                               filename="", parttype="user")
+                if vbmeta!=b"":
+                    self.info(f'Patching vbmeta"')
+                    patched_vbmeta = self.patch_vbmeta(vbmeta,vbmode)
+                    self.info(f'Writing partition "{rpartition.name}"')
+                    if self.mtk.daloader.writeflash(addr=rpartition.sector * self.config.pagesize,
+                                               length=rpartition.sectors * self.config.pagesize,
+                                               wdata=patched_vbmeta, parttype="user"):
+                        self.info("Successfully patched vbmeta :)")
+                    else:
+                        self.error("Error on patching vbmeta :(")
 
     def da_gpt(self, directory: str):
         if directory is None:
@@ -499,7 +540,7 @@ class DaHandler(metaclass=LogBase):
                 wsize = min(sectorsize, 0x200000)
                 if self.mtk.daloader.writeflash(addr=sector * self.config.pagesize,
                                                 length=wsize,
-                                                filename=None,
+                                                filename="",
                                                 wdata=wipedata[:wsize],
                                                 parttype="user"):
                     print(
@@ -543,7 +584,7 @@ class DaHandler(metaclass=LogBase):
                         wsize = min(sectorsize, 0x200000)
                         if self.mtk.daloader.writeflash(addr=sector * self.config.pagesize,
                                                         length=wsize,
-                                                        filename=None,
+                                                        filename="",
                                                         wdata=wipedata[:wsize],
                                                         parttype=parttype):
                             print(
@@ -647,6 +688,7 @@ class DaHandler(metaclass=LogBase):
                 data = bytes.fromhex(data)
         if self.mtk.daloader.poke(addr=addr, data=data):
             self.info(f"Successfully wrote data to {hex(addr)}, length {hex(len(data))}")
+
 
     def handle_da_cmds(self, mtk, cmd: str, args):
         if mtk is None or mtk.daloader is None:
@@ -764,7 +806,7 @@ class DaHandler(metaclass=LogBase):
             partitions = partitionname.split(",")
             self.da_es(partitions=partitions, parttype=parttype, sectors=sectors)
         elif cmd == "ess":
-            sector = args.startsector
+            sector = getint(args.startsector)
             parttype = args.parttype
             sectors = getint(args.sectors)
             if args.sectors is None:
@@ -781,7 +823,7 @@ class DaHandler(metaclass=LogBase):
         elif cmd == "da":
             subcmd = args.subcmd
             if subcmd is None:
-                print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom]")
+                print("Available da cmds are: [peek, poke, generatekeys, seccfg, rpmb, meta, memdump, efuse, dumpbrom, vbmeta]")
                 return
             if subcmd == "peek":
                 addr = getint(args.address)
@@ -842,14 +884,17 @@ class DaHandler(metaclass=LogBase):
                 if rpmb_subcmd is None:
                     print('Available da xflash rpmb cmds are: [r w]')
                 if rpmb_subcmd == "r":
-                    mtk.daloader.read_rpmb(args.filename)
+                    mtk.daloader.read_rpmb(args.filename, args.sector, args.sectors)
                 elif rpmb_subcmd == "w":
-                    mtk.daloader.write_rpmb(args.filename)
+                    mtk.daloader.write_rpmb(args.filename, args.sector, args.sectors)
                 elif rpmb_subcmd == "e":
-                    mtk.daloader.erase_rpmb()
+                    mtk.daloader.erase_rpmb(args.sector, args.sectors)
             elif subcmd == "meta":
                 metamode = args.metamode
                 if metamode is None:
                     print("metamode is needed [usb,uart,off]!")
                 else:
                     mtk.daloader.setmetamode(metamode)
+            elif subcmd == "vbmeta":
+                vbmode = int(args.vbmode)
+                self.da_vbmeta(vbmode=vbmode)

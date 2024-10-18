@@ -8,8 +8,9 @@ import sys
 from binascii import hexlify
 from struct import pack, unpack
 
+from Cryptodome.Util.number import bytes_to_long, long_to_bytes
+
 from mtkclient.Library.Auth.sla import generate_da_sla_signature
-from mtkclient.Library.Auth.sla_keys import da_sla_keys
 from mtkclient.Library.DA.xflash.xflash_flash_param import NandExtension
 from mtkclient.Library.DA.xflash.xflash_param import Cmd, ChecksumAlgorithm, FtSystemOSE, DataType
 from mtkclient.Library.utils import LogBase, logsetup
@@ -882,7 +883,7 @@ class DAXFlash(metaclass=LogBase):
                 if display:
                     self.mtk.daloader.progress.show_progress("Read", total, total, display)
                 return buffer
-        if not filename:
+        if filename != b"":
             return b""
         return False
 
@@ -930,11 +931,11 @@ class DAXFlash(metaclass=LogBase):
         part_info = self.partitiontype_and_size(storage, parttype, length)
         return part_info
 
-    def writeflash(self, addr, length, filename, offset=0, parttype=None, wdata=None, display=True):
+    def writeflash(self, addr, length, filename: str = "", offset=0, parttype=None, wdata=None, display=True):
         self.mtk.daloader.progress.clear()
         fh = None
         fill = 0
-        if filename is not None:
+        if filename != "":
             if os.path.exists(filename):
                 fsize = os.stat(filename).st_size
                 length = min(fsize, length)
@@ -1141,8 +1142,9 @@ class DAXFlash(metaclass=LogBase):
 
     def handle_sla(self, da2):
         rsakey = None
+        from mtkclient.Library.Auth.sla_keys import da_sla_keys
         for key in da_sla_keys:
-            if da2.find(bytes.fromhex(key.n)) != -1:
+            if da2.find(long_to_bytes(key.n)) != -1:
                 rsakey = key
                 break
         if rsakey is None:
@@ -1245,6 +1247,7 @@ class DAXFlash(metaclass=LogBase):
                             if status == 0x0 and unpack("<I", ret)[0] == 0xA1A2A3A4:
                                 self.info("DA Extensions successfully added")
                                 self.daext = True
+                                self.xft.custom_set_storage(ufs=self.daconfig.flashtype == "ufs")
                         if not self.daext:
                             self.warning("DA Extensions failed to enable")
 
