@@ -123,7 +123,7 @@ def load_translations(application):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, thread):
+    def __init__(self):
         super(MainWindow, self).__init__()
         self.readpartitionCheckboxes = None
         self.ui = Ui_MainWindow()
@@ -142,7 +142,7 @@ class MainWindow(QMainWindow):
         self.ui.connectInfo.setMinimumSize(200, 500)
         self.ui.connectInfo.setMaximumSize(9900, 500)
         self.ui.showdebugbtn.clicked.connect(self.showDebugInfo)
-        self.thread = thread
+
         self.devhandler = None
         self.readflash = None
 
@@ -240,7 +240,7 @@ class MainWindow(QMainWindow):
 
     def initread(self):
         self.readflash = ReadFlashWindow(self.ui, self, self.devhandler.da_handler, self.sendToLog)
-        self.thread.sendUpdateSignal.connect(self.updateGui)
+        thread.sendUpdateSignal.connect(win.updateGui)
         self.readflash.enableButtonsSignal.connect(self.enablebuttons)
         self.readflash.disableButtonsSignal.connect(self.disablebuttons)
         self.ui.readpartitionsbtn.clicked.connect(self.readflash.dumpPartition)
@@ -501,7 +501,7 @@ class MainWindow(QMainWindow):
         self.ui.spinner_pic.setHidden(True)
 
 
-def main():
+if __name__ == '__main__':
     # Enable nice 4K Scaling
     os.environ["QT_AUTO_SCREEN_SCALE_FACTOR"] = "1"
 
@@ -509,10 +509,7 @@ def main():
     app = QApplication(sys.argv)
     load_translations(app)
 
-    loglevel = logging.INFO
-    devhandler = DeviceHandler(parent=app, preloader=None, loglevel=loglevel)
-    thread = asyncThread(parent=app, n=0, function=getDevInfo, parameters=[loglevel, phoneInfo, devhandler])
-    win = MainWindow(thread)
+    win = MainWindow()
 
     icon = QIcon()
     icon.addFile(path.get_images_path('logo_32.png'), QSize(32, 32))
@@ -538,9 +535,11 @@ def main():
     # win.setFixedSize(746, 400 + addTopMargin)
 
     # Device setup
+    loglevel = logging.INFO
+    devhandler = DeviceHandler(parent=app, preloader=None, loglevel=loglevel)
     devhandler.sendToLogSignal.connect(win.sendToLog)
     # Get the device info
-
+    thread = asyncThread(parent=app, n=0, function=getDevInfo, parameters=[loglevel, phoneInfo, devhandler])
     thread.sendToLogSignal.connect(win.sendToLog)
     thread.sendUpdateSignal.connect(win.updateGui)
     thread.sendToProgressSignal.connect(win.sendToProgress)
@@ -552,7 +551,3 @@ def main():
     # Prevent thread from not being closed and call error end codes
     thread.terminate()
     thread.wait()
-
-
-if __name__ == '__main__':
-    main()

@@ -301,7 +301,7 @@ class DAloader(metaclass=LogBase):
             return True
         return False
 
-    def writeflash(self, addr, length, filename: str = "", offset=0, parttype=None, wdata=None, display=True):
+    def writeflash(self, addr, length, filename, offset=0, parttype=None, wdata=None, display=True):
         return self.da.writeflash(addr=addr, length=length, filename=filename, offset=offset,
                                   parttype=parttype, wdata=wdata, display=display)
 
@@ -395,42 +395,26 @@ class DAloader(metaclass=LogBase):
         elif self.flashmode == DAmodes.XML:
             return self.xmlft.seccfg(lockflag)
 
-    def str_to_int(self, arg):
-        if arg is not None:
-            if "0x" in arg:
-                value = int(arg,16)
-            else:
-                value = int(arg, 10)
-        else:
-            value = 0
-        return value
-
-    def read_rpmb(self, filename=None, sector: str = None, sectors: str = None):
-        sector = self.str_to_int(sector)
-        sectors = self.str_to_int(sectors)
+    def read_rpmb(self, filename=None):
         if self.flashmode == DAmodes.XFLASH:
-            return self.xft.read_rpmb(filename, sector, sectors)
+            return self.xft.read_rpmb(filename)
         elif self.flashmode == DAmodes.XML:
-            return self.xmlft.read_rpmb(filename, sector, sectors)
+            return self.xmlft.read_rpmb(filename)
         self.error("Device is not in xflash/xml mode, cannot run read rpmb cmd.")
         return False
 
-    def write_rpmb(self, filename=None, sector: int = 0, sectors: int = None):
-        sector = self.str_to_int(sector)
-        sectors = self.str_to_int(sectors)
+    def write_rpmb(self, filename=None):
         if self.flashmode == DAmodes.XFLASH:
-            return self.xft.write_rpmb(filename, sector, sectors)
+            return self.xft.write_rpmb(filename)
         elif self.flashmode == DAmodes.XML:
-            return self.xmlft.write_rpmb(filename, sector, sectors)
+            return self.xmlft.write_rpmb(filename)
         self.error("Device is not in xflash/xml mode, cannot run write rpmb cmd.")
         return False
 
-    def erase_rpmb(self, sector: int = 0, sectors: int = None):
-        sector = self.str_to_int(sector)
-        sectors = self.str_to_int(sectors)
+    def erase_rpmb(self):
         if self.flashmode == DAmodes.XFLASH:
-            return self.xft.erase_rpmb(sector, sectors)
+            return self.xft.erase_rpmb()
         if self.flashmode == DAmodes.XML:
-            return self.xmlft.erase_rpmb(sector, sectors)
+            return self.xmlft.erase_rpmb()
         self.error("Device is not in xflash/xml mode, cannot run erase rpmb cmd.")
         return False

@@ -195,7 +195,7 @@ class LegacyExt(metaclass=LogBase):
             return False, writedata
         if self.legacy.writeflash(addr=partition.sector * self.mtk.daloader.daconfig.pagesize,
                                   length=len(writedata),
-                                  filename="", wdata=writedata, parttype="user", display=True):
+                                  filename=None, wdata=writedata, parttype="user", display=True):
             return True, "Successfully wrote seccfg."
         return False, "Error on writing seccfg config to flash."
 
@@ -351,7 +351,7 @@ class LegacyExt(metaclass=LogBase):
             else:
                 self.info("SEJ Mode: No meid found. Are you in brom mode ?")
         if self.config.chipconfig.gcpu_base is not None:
-            if self.config.hwcode in [0x335, 0x8167, 0x8168, 0x8163, 0x8176]:
+            if self.config.hwcode in [0x335, 0x8167, 0x8163, 0x8176]:
                 self.info("Generating gcpu mtee2 key...")
                 mtee2 = hwc.aes_hwcrypt(btype="gcpu", mode="mtee")
                 if mtee2 is not None:

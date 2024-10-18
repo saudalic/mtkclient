@@ -52,11 +52,6 @@ or
 yay -S python python-pip git libusb fuse2
 ```
 
-#### For Fedora
-```
-sudo dnf install python3 git libusb1 fuse
-```
-
 #### Grab files 
 ```
 git clone https://github.com/bkerler/mtkclient
@@ -71,7 +66,6 @@ sudo usermod -a -G plugdev $USER
 sudo usermod -a -G dialout $USER
 sudo cp mtkclient/Setup/Linux/*.rules /etc/udev/rules.d
 sudo udevadm control -R
-sudo udevadm trigger
 ```
 Make sure to reboot after adding the user to dialout/plugdev. If the device
 has a vendor interface 0xFF (like LG), make sure to add "blacklist qcaux" to
@@ -204,10 +198,6 @@ python mtk.py --stock
 ```bash
 python mtk.py script run.example
 ```
-or
-```
-python mtk.py multi "cmd1;cmd2"
-```
 See the file "[run.example](https://github.com/bkerler/mtkclient/blob/main/run.example)" on how to structure the script file
 
 ### Root the phone (Tested with android 9 - 12)
@@ -247,10 +237,9 @@ mv [displayed magisk patched boot filename here] boot.patched
 
 7. Do the steps needed in section "Unlock bootloader below"
 
-8. Flash magisk-patched boot and disable verity + verification on vbmeta
+8. Flash magisk-patched boot and empty vbmeta
 ```
-python mtk.py da vbmeta 3
-python mtk.py w boot boot.patched
+python mtk.py w boot,vbmeta boot.patched,vbmeta.img.empty
 ```
 
 9. Reboot the phone
@@ -267,16 +256,6 @@ Example:
 
 ```
 python mtk.py payload --metamode FASTBOOT
-```
-
-### Dump preloader
-```
-mtk.py r preloader preloader.bin --parttype boot1
-```
-
-### Dump serialnumber / special partition
-```
-mtk.py r preloader preloader.bin --parttype boot2
 ```
 
 ### Read efuses
@@ -570,4 +549,3 @@ For dxcc, you need to use plstage instead of stage
 ### Chip details / configs
 - Go to config/brom_config.py
 - Unknown usb vid/pids for autodetection go to config/usb_ids.py
-# [LEARNING_RESOURCES](https://github.com/bkerler/mtkclient/blob/main/learning_resources.md)

@@ -42,7 +42,7 @@ class ArgHandler(metaclass=LogBase):
                 config.pid = getint(args.pid)
         except AttributeError:
             pass
-        config.stock = False
+        config.stock = True
         try:
             if args.stock is not None:
                 config.stock = args.stock
@@ -413,26 +413,6 @@ class Main(metaclass=LogBase):
                     sys.stderr.flush()
             else:
                 self.close()
-        elif cmd == "multi":
-            # Split the commands in the multi argument
-            commands = self.args.commands.split(';')
-            # DA / Flash commands start here
-            try:
-                preloader = self.args.preloader
-            except Exception:
-                preloader = None
-            da_handler = DaHandler(mtk, loglevel)
-            mtk = da_handler.configure_da(mtk, preloader)
-            if mtk is not None:
-                for rcmd in commands:
-                    self.args = parser.parse_args(rcmd.split(" "))
-                    ArgHandler(self.args, config)
-                    cmd = self.args.cmd
-                    da_handler.handle_da_cmds(mtk, cmd, self.args)
-                    sys.stdout.flush()
-                    sys.stderr.flush()
-            else:
-                self.close()        
         elif cmd == "dumpbrom":
             if mtk.preloader.init():
                 rmtk = mtk.crasher()
@@ -682,8 +662,8 @@ class Main(metaclass=LogBase):
             mtk = da_handler.configure_da(mtk, preloader)
             if mtk is not None:
                 da_handler.handle_da_cmds(mtk, cmd, self.args)
-                mtk.port.close()
-            self.close()
+            else:
+                self.close()
 
     def cmd_log(self, mtk, filename):
         if mtk.preloader.init():

@@ -9,6 +9,7 @@ from struct import unpack, pack
 from binascii import hexlify
 
 from Cryptodome.Util.number import size
+from mtkclient.Library.Auth.sla_keys import brom_sla_keys
 from mtkclient.Library.Auth.sla import generate_brom_sla_challenge
 from mtkclient.Library.settings import HwParam
 from mtkclient.Library.utils import LogBase, logsetup
@@ -659,7 +660,6 @@ class Preloader(metaclass=LogBase):
     def handle_sla(self, func=None, isbrom: bool = True):
         if isbrom:
             # e, n, d
-            from mtkclient.Library.Auth.sla_keys import brom_sla_keys
             for key in brom_sla_keys:
                 if self.echo(self.Cmd.SLA.value):
                     status = self.rword()
@@ -844,10 +844,10 @@ class Preloader(metaclass=LogBase):
         time.sleep(0.035)
         try:
             res = self.rword(2)
-            if isinstance(res, tuple) and res == []:
+            if isinstance(res, list) and res == []:
                 self.error("No reply from da loader.")
                 return False
-            if isinstance(res, tuple):
+            if isinstance(res, list):
                 checksum, status = res
                 if gen_chksum != checksum and checksum != 0:
                     self.warning("Checksum of upload doesn't match !")
