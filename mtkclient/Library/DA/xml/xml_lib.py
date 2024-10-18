@@ -7,6 +7,7 @@ from struct import pack, unpack
 from queue import Queue
 from threading import Thread
 
+from Cryptodome.Util.number import long_to_bytes
 from Cryptodome.Cipher import PKCS1_OAEP
 from Cryptodome.Hash import SHA256
 from Cryptodome.PublicKey import RSA
@@ -21,7 +22,7 @@ from mtkclient.Library.thread_handling import writedata
 from mtkclient.Library.DA.xml.xml_cmd import XMLCmd, BootModes
 from mtkclient.Library.DA.xml.extension.v6 import XmlFlashExt
 from mtkclient.Library.Auth.sla import generate_da_sla_signature
-from mtkclient.Library.Auth.sla_keys import da_sla_keys, SlaKey
+
 
 rq = Queue()
 
@@ -189,6 +190,9 @@ class DAXML(metaclass=LogBase):
                 cmd, result = self.get_command_result()
                 if cmd == "CMD:END":
                     self.ack()
+                    if result == '2nd DA address is invalid. reset.\r\n':
+                        self.error(result)
+                        exit(1)
                     scmd, sresult = self.get_command_result()
                     if scmd == "CMD:START":
                         if result == "OK":
@@ -203,7 +207,7 @@ class DAXML(metaclass=LogBase):
                 self.ack()
                 tcmd, tresult = self.get_command_result()
                 if tcmd == "CMD:START":
-                    return sresult
+                    return False
             elif "ERR!" in result:
                 return result
         return False
@@ -618,9 +622,10 @@ class DAXML(metaclass=LogBase):
                     else:
                         self.info("SLA is enabled")
                         rsakey = None
+                        from mtkclient.Library.Auth.sla_keys import da_sla_keys, SlaKey
                         for key in da_sla_keys:
                             if isinstance(key, SlaKey):
-                                if da2.find(bytes.fromhex(key.n)) != -1:
+                                if da2.find(long_to_bytes(key.n)) != -1:
                                     rsakey = key
                         if rsakey is None:
                             print("No valid sla key found, using dummy auth ....")
@@ -632,6 +637,8 @@ class DAXML(metaclass=LogBase):
                             sla_signature = generate_da_sla_signature(data=self.dev_info["rnd"], key=rsakey.key)
                             if not self.handle_sla(data=sla_signature):
                                 print("SLA Key wasn't accepted.")
+            self.reinit(True)
+            self.check_lifecycle()
             if self.patch:
                 xmlcmd = self.Cmd.create_cmd("CUSTOM")
                 if self.xsend(xmlcmd):
@@ -654,16 +661,17 @@ class DAXML(metaclass=LogBase):
                         if self.xmlft.ack():
                             self.info("DA XML Extensions successfully loaded.")
                             self.daext = True
+                            # self.xmlft.custom_set_storage(ufs=self.daconfig.flashtype == "ufs")
                         else:
                             self.error("DA XML Extensions failed.")
                             self.daext = False
                     else:
                         self.error("DA XML Extensions failed.")
                         self.daext = False
-                self.reinit(True)
-                self.check_lifecycle()
                 # parttbl = self.read_partition_table()
                 self.config.hwparam.writesetting("hwcode", hex(self.config.hwcode))
+                return True
+            else:
                 return True
         return False
 
@@ -790,9 +798,8 @@ class DAXML(metaclass=LogBase):
         return None
 
     def change_usb_speed(self):
-        resp = self.send_command(self.Cmd.cmd_can_higher_usb_speed())
-        if "Unsupported" in resp:
-            return False
+        return self.send_command(self.Cmd.cmd_can_higher_usb_speed())
+
 
     def read_partition_table(self) -> tuple:
         self.send_command(self.Cmd.cmd_read_partition_table(), noack=True)
@@ -908,26 +915,28 @@ class DAXML(metaclass=LogBase):
         self.mtk.daloader.progress.clear()
         storage, parttype, length = partinfo
 
-        self.send_command(self.Cmd.cmd_read_flash(parttype, addr, length), noack=True)
-        cmd, result = self.get_command_result()
-        if type(result) is not UpFile:
-            return b""
-        data = self.download_raw(result=result, filename=filename, display=display)
-        scmd, sresult = self.get_command_result()
-        if sresult == "START":
+        if self.send_command(self.Cmd.cmd_read_flash(parttype, addr, length), noack=True):
+            cmd, result = self.get_command_result()
+            if type(result) is not UpFile:
+                return b""
+            data = self.download_raw(result=result, filename=filename, display=display)
+            scmd, sresult = self.get_command_result()
+            if sresult == "START":
+                if not filename:
+                    return data
+                else:
+                    return True
             if not filename:
-                return data
-            else:
-                return True
-        if not filename:
-            return b""
-        return False
+                return b""
+            return False
+        else:
+            self.error("Read flash isn't supported")
+            return False
 
     def writeflash(self, addr, length, filename, offset=0, parttype=None, wdata=None, display=True):
         self.mtk.daloader.progress.clear()
         fh = None
-        fill = 0
-        if filename is not None:
+        if filename != "":
             if os.path.exists(filename):
                 fsize = os.stat(filename).st_size
                 length = min(fsize, length)
@@ -958,7 +967,10 @@ class DAXML(metaclass=LogBase):
             self.ack_value(length)
             cmd, result = self.get_command_result()
             if type(result) is DwnFile:
-                data = fh.read(length)
+                if fh:
+                    data = fh.read(length)
+                else:
+                    data = wdata
                 if not self.upload(result, data, raw=True):
                     self.error("Error on writing flash at 0x%08X" % addr)
                     return False
@@ -973,6 +985,9 @@ class DAXML(metaclass=LogBase):
         self.send_command(self.Cmd.cmd_emmc_control(function="LIFE-CYCLE-STATUS"), noack=True)
         cmd, result = self.get_command_result()
         if not isinstance(result, UpFile):
+            if cmd == 'CMD:END':
+                self.ack()
+                scmd, sresult = self.get_command_result()
             return False
         data = self.download(result)
         scmd, sresult = self.get_command_result()
