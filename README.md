@@ -212,10 +212,10 @@ python mtk.py r boot,vbmeta boot.img,vbmeta.img
 python mtk.py reset
 ```
 
-3. Download patched magisk for mtk:
+1. Download patched magisk for mtk:
 Download latest Magisk [here](https://github.com/topjohnwu/Magisk/releases/latest)
 
-4. Install on target phone
+2. Install on target phone
 - you need to enable usb-debugging via Settings/About phone/Version, Tap 7x on build number
 - Go to Settings/Additional settings/Developer options, enable "OEM unlock" and "USB Debugging"
 - Install magisk apk
